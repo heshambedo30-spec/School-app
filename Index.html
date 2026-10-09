@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>نظام توزيع الاحتياطي للمشرفين</title>
+<style>
+:root{--primary:#1e3a83;--primary-light:#dbeafe;--bg:#f8f9fa;--card:#ffffff;--text:#1e293b;--muted:#64748b;--danger:#b91c1c;--success:#059669;--warn:#d97706;--max-load:#6;}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;font-family:Tajawal,system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);padding-bottom:80px}
+header{background:var(--primary);color:#fff;padding:15px 20px;position:sticky;top:0;z-index:10;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+header h1{margin:0;font-size:18px;font-weight:700}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e2e8f0;z-index:20;padding:10px 0}
+.nav-btn{flex:1;text-align:center;padding:8px 0;color:var(--muted);text-decoration:none;font-size:11px;font-weight:600;gap:3px}
+.nav-btn.active{color:var(--primary)}
+.nav-btn svg{width:20px;height:20px}
+.section{display:none}.section.active{display:block}
+.card{background:var(--card);border-radius:14px;padding:15px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.card h3{margin:0 0 12px;font-size:15px;display:flex;align-items:center;justify-content:space-between}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 14px;border-radius:10px;border:none;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:.2s}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-outline{background:#fff;border:1px solid #cbd5e1;color:var(--text)}
+.img-preview{width:100%;max-height:200px;object-fit:contain;border:1px solid #e2e8f0;border-radius:8;margin:10px 0;display:none}
+.loading{text-align:center;padding:20px;color:var(--muted)}
+/* Table Styles */
+.tt-table{width:100%;border-collapse:collapse;font-size:12px}
+.tt-table th,.tt-table td{border:1px solid #e2e8f0;padding:4px;text-align:center}
+.tt-table th{background:#f8fafc;font-weight:600}
+.tt-table td input{width:100%;border:none;border-bottom:1px solid #64748b;padding:4px;text-align:center;font-weight:500;background:transparent}
+.tt-table td input:focus{outline:none;background:#e0e7ff}
+/* Load Limit Visual */
+.load-badge{display:inline-block;padding:2px 6px;border-radius:10px;background:#e0e7ff;color:#1e3a8a;font-size:10px;margin-left:4px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📋 نظام توزيع الاحتياطي</h1>
+  <div style="font-size:12px;color:#bfdbfe">يُستخدم على موبايل المشرف</div>
+</div>
+</header>
+
+<div class="container">
+  <!-- 1. اليومية -->
+  <div id="sec-daily" class="section active">
+    <div class="card">
+      <h3>اليوم اليومي</h3>
+      <div style="display:flex;gap:10px;margin:10px 0">
+        <input type="date" id="selDate" style="flex:1;padding:8px;border-radius:8px;border:1px solid #cbd5e1">
+        <button class="btn btn-outline" onclick="loadDateData()">تحميل</button>
+      </div>
+      <div class="grid-2" style="margin-bottom:10px">
+        <div class="card"><b style="font-size:24px;color:var(--danger)" id="absCount">0</b><div style="font-size:12px">غائبون</div></div>
+        <div class="card"><b style="font-size:24px;color:var(--primary)" id="needCount">0</b><div style="font-size:12px">حصر احتياطي</div></div>
+      </div>
+      <button class="btn btn-success btn-block" onclick="autoDistribute()" style="margin-bottom:10px;width:100%">⚡ توزيع تلقائي (أقصى 6 حصص)</button>
+      
+      <div class="card">
+        <h4>دفتر التوزيع (اليوم)</h4>
+        <div class="tt-scroll"><table class="tt-table" id="distTable">
+          <thead><tr><th>#</th><th>الحصة</th><th>الفصل</th><th>المدرس الغائب</th><th>البديل</th><th>الحمل اليومي</th></tr></thead>
+          <tbody id="distTbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>❌ تسجيل الغائبين</h3>
+      <div id="listAbsent"></div>
+    </div>
+
+    <div class="card">
+      <h3>🛡️ الاستثناءات اليوم (إجهاد/اعتذار)</h3>
+      <p style="font-size:12px;color:var(--muted)">هؤلاء لن يتم تكليفهم بالاحتياطي اليوم</p>
+      <div id="listExempt"></div>
+    </div>
+  </div>
+
+  <!-- 2. الجداول والمسح الضوئي -->
+  <div id="sec-tt" class="section">
+    <div class="card">
+      <h3>📅 الجداول الأسبوعية والمسح الضوئي</h3>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:10px">الصورة يجب أن تكون واضحة (لا خط يد) وتظهر 8 حصص لـ 5 أيام</p>
+      
+      <label class="btn btn-primary" style="width:100%;cursor:pointer">
+        📷 رفع صورة الجدول للمساعدة
+        <input type="file" accept="image/*" style="display:none" id="fileInput">
+      </label>
+      <div id="imgPreview" class="img-preview"></div>
+      <div id="ocrLoading" class="loading">⏳ جاري قراءة الجدول بواسطة الذكاء الاصطناعي...</div>
+
+      <div class="card" style="margin-top:15px">
+        <h4>تعديل الجدول يدوياً (للإدارة)</h4>
+        <p style="font-size:12px;color:var(--muted)">يمكنك التعديل على الخلايا بعد القراءة أو يدوياً</p>
+        <div class="tt-scroll"><table class="tt-table" id="matrixTable">
+          <thead><tr><th>اليوم</th><th>1</th><th>2</th><th>3</th><th>4</th><th>5</th><th>6</th><th>7</th><th>8</th></tr></thead>
+          <tbody id="matrixBody"></tbody>
+        </table></div>
+        <button class="btn btn-success" style="width:100%;margin-top:10px" onclick="saveMatrix()">💾 حفظ التعديلات</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. المدرسين -->
+  <div id="sec-teachers" class="section">
+    <div class="card">
+      <h3>👥 إدارة قائمة المدرسين</h3>
+      <input type="text" id="newTeacherName" placeholder="اسم المدرس" style="width:60%;padding:8px;border-radius:8px;border:1px solid #cbd5e1">
+      <input type="text" id="newTeacherSub" placeholder="المادة" style="width:35%;padding:8px;border-radius:8px;border:1px solid #cbd5e1;margin-left:5px">
+      <button class="btn btn-primary btn-sm" onclick="addTeacher()">إضافة مدرس</button>
+      <div id="teachersList" style="margin-top:15px"></div>
+    </div>
+  </div>
+
+  <!-- 4. التقارير -->
+  <div id="sec-reports" class="section">
+    <div class="card">
+      <h3>📊 التقرير الشهري</h3>
+      <input type="month" id="repMonth" style="width:100%;padding:8px;border-radius:8px;border:1px solid #cbd5e1;margin-bottom:10px">
+      <button class="btn btn-outline" onclick="generateReport()">توليد التقرير</button>
+      <div id="reportTable" style="overflow-x:auto"></div>
+    </div>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <a href="#" class="nav-btn active" onclick="nav('daily', this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"></path><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"></path></svg>اليومية</a>
+  <a href="#" class="nav-btn" onclick="nav('tt', this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>الجداول</a>
+  <a href="#" class="nav-btn" onclick="nav('teachers', this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path><circle cx="9" cy="7" r="4"></circle></svg>المدرسين</a>
+  <a href="#" class="nav-btn" onclick="nav('reports', this)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"></path></svg>التقارير</a>
+</nav>
+
+<script>
+const DAYS = ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس","الجمعة"];
+const PERIODS = 8;
+const MAX_LOAD = 6; // أقصى عدد حصص في اليوم
+const DB_KEY = "SUPERVISOR_APP_V1";
+
+let DB = JSON.parse(localStorage.getItem(DB_KEY)) || {
+  teachers: [], 
+  daily: {}, 
+  nextId: 1,
+  // جدول ثابت للأيام والأحمال
+  schedule: {}
+};
+saveFunc();
+
+function saveFunc(){ localStorage.setItem(DB_KEY, JSON.stringify(DB)); }
+function $(id){ return document.getElementById(id); }
+
+function nav(tab, el){
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+tab).classList.add('active');
+  document.querySelectorAll('.nav-btn').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  if(tab==='tt') renderTeacherSelect();
+  if(tab==='reports') document.getElementById('repMonth').value = (new Date()).toISOString().substring(0,7);
+}
+
+// --- 1. البيانات اليومية ---
+function loadDateData(){
+  const date = $('selDate').value;
+  if(!date) return alert('اختار تاريخ');
+  const data = DB.daily[date];
+  if(!data) DB.daily[date] = {absent:[], exempt:[], assign:{}};
+  
+  renderDailyUI(date);
+  $('selDate').value = date;
+}
+
+// عرض اليومية
+function renderDailyUI(date){
+  const d = DB.daily[date] || {absent:[], exempt:[], assign:{}};
+  const day = new Date(date).toLocaleDateString('ar-EG', {weekday:'long'});
+  
+  document.getElementById('absCount').innerText = d.absent.length;
+  //حسبالحصص المحتاجة للتوزيع
+  let need = 0; d.absent.forEach(a=> DB.teachers.forEach(t=>{if(t.id===a) for(let p=1;p<=PERIODS;p++) if(t.tt&&t.tt[`${day}_${p}`]) need++;}));
+  document.getElementById('needCount').innerText = need;
+
+  // قائمة الغياب
+  let absHTML = DB.teachers.map(t=>`
+    <div class="teacher-item ${d.absent.includes(t.id)?'absent':'exempt'}" style="margin-bottom:6px">
+      <span>${t.name} (${t.sub})</span>
+      <button class="btn btn-sm ${d.absent.includes(t.id)?'btn-danger':'btn-outline'}" onclick="toggleAbsent(${t.id})">
+        ${d.absent.includes(t.id)?'إلغاء':'تسجيل غياب'}
+      </button>
+    </div>`).join('')||'<p style="color:var(--muted)">لا يوجد مدرسون</p>';
+  $('listAbsent').innerHTML = absHTML;
+
+  // قائمة الاستثناءات
+  let excHTML = DB.teachers.map(t=>`
+    <div class="teacher-item exempt" style="margin-bottom:6px">
+      <span>${t.name} (${t.sub})</span>
+      <button class="btn btn-sm ${!d.exempt.includes(t.id)?'btn-outline':'btn-danger'}" onclick="toggleExempt(${t.id})">
+        ${!d.exempt.includes(t.id)?'استثناء':'إلغاء استثناء'}
+      </button>
+    </div>`).join('')||'<p style="color:var(--muted)">لا يوجد مستثنون</p>';
+  $('listExempt').innerHTML = excHTML;
+
+  // تعبئة جدول التوزيع
+  const tbody = $('distTbody');
+  let rows = '';
+  let idx=1;
+  // نحسب الحصص المطلوبة للتوزيع بناءً على الغياب
+  const dayName = DAYS[new Date(date).getDay()%7] || "اليوم";
+  d.absent.forEach(aId=> {
+    const t = DB.teachers.find(x=>x.id===aId);
+    if(!t) return;
+    for(let p=1;p<=PERIODS;p++){
+      const cls = t.tt && t.tt[`${dayName}_${p}`] ? t.tt[`${dayName}_${p}`] : "-";
+      const isAssigned = d.assign[`${p}_${aId}`];
+      const assignedT = isAssigned ? DB.teachers.find(x=>x.id===isAssigned) : null;
+      const currentLoad = (t.tt ? Object.values(t.tt).filter(v=>v).length : 0) + (isAssigned?1:0);
+      
+      rows += `<tr>
+        <td>${idx++}</td><td><b>حصة ${p}</b></td><td>${cls}</td>
+        <td>${t.name}</td><td>${assignedT ? assignedT.name : 'لم يوزع'} ${assignedT?'<span class="load-badge">'+currentLoad+'/'+MAX_LOAD+'</span>':' '}</td>
+        <td><input type="number" min="1" max="${MAX_LOAD-currentLoad}" value="${assignedT||''}" onchange="assignManual(${aId},${p},this.value)" style="width:80px;padding:2px"></td>
+      </tr>`;
+    }
+  });
+  tbody.innerHTML = rows || '<tr><td colspan="6" style="color:var(--muted)">لا غياب لهذا اليوم</td></tr>';
+}
+
+//Toggle absent
+function toggleAbsent(id){
+  const date = $('selDate').value;
+  const d = DB.daily[date];
+  if(d.absent.includes(id)) d.absent.splice(d.absent.indexOf(id),1);
+  else d.absent.push(id);
+  saveFunc(); renderDailyUI(date);
+}
+//Toggle exempt
+function toggleExempt(id){
+  const date = $('selDate').value;
+  const d = DB.daily[date];
+  if(d.exempt.includes(id)) d.exempt.splice(d.exempt.indexOf(id),1);
+  else d.exempt.push(id);
+  saveFunc(); renderDailyUI(date);
+}
+//تعيين يدوي
+function assignManual(tId, p, val){
+  const date = $('selDate').value;
+  const d = DB.daily[date];
+  const numVal = +val;
+  if(numVal && numVal<=MAX_LOAD){
+    d.assign[`${p}_${tId}`] = numVal;
+  } else if(!numVal) delete d.assign[`${p}_${tId}`];
+  saveFunc(); renderDailyUI(date);
+}
+
+// --- 2. الجداول والمسح الضوئي ---
+function renderTeacherSelect(){
+  const sel = $('tt-teacher-select');
+  sel.innerHTML = DB.teachers.map(t=>`<option value="${t.id}">${t.name}</option>`).join('');
+  loadTTGrid();
+}
+
+function loadTTGrid(){
+  const id = +$('tt-teacher-select').value;
+  const t = DB.teachers.find(x=>x.id===id);
+  if(!t) return;
+  const dayNames = ["الأحد","الاثنين","الثلاثاء","الأربعاء","الخميس"];
+  const tbody = $('matrixBody');
+  tbody.innerHTML = dayNames.map(d=>`
+    <tr><th>${d}</th>${Array.from({length:8},(_,i)=>i+1).map(p=>`<td><input type="text" data-d="${d}" data-p="${p}" value="${t.tt&&t.tt[`${d}_${p}`]||''}" placeholder="-"></td>`).join('')}</tr>`).join('');
+}
+
+function uploadImg(){
+  $('fileInput').click();
+}
+$('fileInput').onchange = async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const key = "AIzaSy..."; // ضع مفتاح Gemini هنا
+  if(!key) return alert("أضف مفتاح Gemini API في الكود لقراءة الصور");
+  
+  $('ocrLoading').style.display='block';
+  const reader = new FileReader();
+  reader.readAsDataURL(file);
+  reader.onload = async ()=>{
+    const base64 = reader.result.split(',')[1];
+    const prompt = `استخرج جدول الحصص الأسبوعي من الصورة المرفقة. الصورة تظهر أيام (أحد، اثنين، ثلاثاء، أربعاء، خميس) وكل يوم لديه 8 خلايا. ارجع JSON فقط بنفس هذا التنسيق الدقيق بدون أي كلام زائد:
+{
+  "الأحد": ["", "", "", "", "", "", "", ""],
+  "الاثنين": ["", "", "", "", "", "", "", ""],
+  "الثلاثاء": ["", "", "", "", "", "", "", ""],
+  "الأربعاء": ["", "", "", "", "", "", "", ""],
+  "الخميس": ["", "", "", "", "", "", "", ""]
+}
+املأ الخلايا بالفصول (مثل 1/1) أو ضع خلية فارغة "".`;
+    try{
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+        method:"POST", headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({contents:[{text:prompt}, {inlineData:{mimeType:'image/jpeg', data:base64}}]})
+      });
+      const data = await res.json();
+      let text = data.candidates[0].content.parts[0].text;
+      text = text.replace(/```json|```/g,'').trim();
+      const parsed = JSON.parse(text);
+      
+      // تطبيق البيانات على المدرس المختار
+      const id = +$('tt-teacher-select').value;
+      const t = DB.teachers.find(x=>x.id===id);
+      if(!t) return;
+      t.tt = {};
+      for(let d in parsed){
+        if(Array.isArray(parsed[d])){
+          parsed[d].forEach((c,i)=>{ if(c) t.tt[`${d}_${i+1}`] = String(c).trim(); })
+        }
+      }
+      saveFunc();
+      loadTTGrid();
+      alert("تم قراءة الجدول ونقله بنجاح!");
+    }catch(e){ console.error(e); alert("فشل في القراءة, تأكد من الصورة واضحة");}
+    finally{$('ocrLoading').style.display='none'}
+  }
+}
+
+// --- 3. المدرسين ---
+function addTeacher(){
+  const name = $('newTeacherName').value.trim();
+  const sub = $('newTeacherSub').value.trim();
+  if(!name) return;
+  DB.teachers.push({id:DB.nextId++, name, sub, tt:{}});
+  saveFunc(); renderTeacherSelect(); $('newTeacherName').value='';$('newTeacherSub').value='';
+  renderTeachersList();
+}
+function renderTeachersList(){
+  $('teachersList').innerHTML = DB.teachers.map(t=>`
+    <div class="teacher-item" style="margin-bottom:8px">
+      <span>${t.name} - ${t.sub}</span>
+      <button class="btn btn-danger btn-sm" onclick="if(confirm('حذف؟')){DB.teachers=DB.teachers.filter(x=>x.id!==${t.id});saveFunc();renderTeachersList();renderTeacherSelect();renderDailyUI($('selDate').value);}">حذف</button>
+    </div>`).join('')||'<p>لا مدرسين</p>';
+}
+function delTeacher(id){ /* handled in render */ }
+
+// --- 4. التقارير ---
+function generateReport(){
+  const month = $('repMonth').value;
+  if(!month) return alert('اختار شهر');
+  let stats = {};
+  DB.teachers.forEach(t=>stats[t.id]={name:t.name,sub:t.sub,abs:0,res:0});
+  
+  for(let d in DB.daily){
+    if(d.startsWith(month)){
+      const data = DB.daily[d];
+      data.absent.forEach(id=>{if(stats[id])stats[id].abs++});
+      for(let k in data.assign){
+        const id = data.assign[k];
+        if(stats[id])stats[id].res++;
+      }
+    }
+  }
+  const tbody = $('reportTable').getElementsByTagName('tbody')[0];
+  let html = "";
+  Object.values(stats).sort((a,b)=>b.res-a.res).forEach(s=>{
+    html += `<tr><td>${s.name}</td><td>${s.sub}</td><td>${s.abs}</td><td><b>${s.res}</b></td></tr>`
+  });
+  tbody.innerHTML = html || '<tr><td colspan="4" style="color:var(--muted)">لا بيانات</td></tr>';
+}
+
+// تهيئة التطبيق
+document.querySelectorAll('.nav-btn')[0].click(); // اليومي افتراضي
+</script>
+</body>
+</html>
